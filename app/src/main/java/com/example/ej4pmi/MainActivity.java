@@ -1,16 +1,17 @@
 package com.example.ej4pmi;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.Image;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -20,11 +21,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Blob;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.stream.Stream;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -32,6 +35,9 @@ public class MainActivity extends AppCompatActivity {
     Blob imagen;
 
     static final int REQUEST_IMAGE = 101;
+    private static final int REQUEST_IMAGE_CAPTURE = 1;
+    private String imagePath;
+    private Uri mImageUri;
     static final int PETICION_ACCESS_CAM = 201;
 
     Button btnTomarFoto;
@@ -41,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     ImageView imageView;
     String currentPhotoPatch;
 
+    @SuppressLint("WrongThread")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,6 +60,12 @@ public class MainActivity extends AppCompatActivity {
         btnGuardar = (Button) findViewById(R.id.btnGuardar);
         btnVer = (Button) findViewById(R.id.btnVer);
 
+        Bitmap bitmap = BitmapFactory.decodeFile(imagePath);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+        byte[] imageByteArray = stream.toByteArray();
+
+
         btnTomarFoto.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -62,8 +75,8 @@ public class MainActivity extends AppCompatActivity {
 
         btnGuardar.setOnClickListener(new View.OnClickListener() {
             @Override
-
             public void onClick(View view) {
+                GuardarImagenGaleria();
 
             }
         });
@@ -71,10 +84,22 @@ public class MainActivity extends AppCompatActivity {
         btnVer.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                Intent intent = new Intent(getApplicationContext(),
+                        ActivityListView.class);
+                startActivity(intent);
+
 
             }
         });
     }
+
+
+
+
+
+
+
+
 
     private void permisos()
     {
@@ -118,11 +143,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data){
+
+   /* protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data){
         super.onActivityResult(requestCode, resultCode, data);
 
-        if(requestCode == REQUEST_IMAGE && resultCode == RESULT_OK)
+        if(requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK)
         {
             try{
                 File foto = new File(currentPhotoPatch);
@@ -133,10 +158,27 @@ public class MainActivity extends AppCompatActivity {
                 ex.toString();
             }
         }
+    }*/
+
+    //Metodo para guardar la imagen en la Galeria
+    private void galleryAddPic(){
+        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        File foto = new File(mImageUri.getPath());
+        Uri contentUri = Uri.fromFile(foto);
+        mediaScanIntent.setData(contentUri);
+        this.sendBroadcast(mediaScanIntent);
+    }
+    @Override
+    protected  void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+            galleryAddPic();
+        }
+
     }
 
     private File createImageFile() throws IOException {
-        // Create an image file name
+        // Create una nombre de Archivo de imagen
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
@@ -151,11 +193,21 @@ public class MainActivity extends AppCompatActivity {
         return image;
     }
 
+    private void GuardarImagenGaleria(){
+        if(mImageUri != null){
+            galleryAddPic();
+            Toast.makeText(this, "Imagen Guardada en la galeria.", Toast.LENGTH_SHORT).show();
+        }else{
+            Toast.makeText(this, "Toma la FotoImagen Primero", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+
     private void dispatchTakePictureIntent() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        // Ensure that there's a camera activity to handle the intent
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            // Create the File where the photo should go
+
             File photoFile = null;
             try {
                 photoFile = createImageFile();
@@ -164,10 +216,10 @@ public class MainActivity extends AppCompatActivity {
             }
             // Continue only if the File was successfully created
             if (photoFile != null) {
-                Uri photoURI = FileProvider.getUriForFile(this,
+                mImageUri = FileProvider.getUriForFile(this,
                         "com.example.ej4pmi.fileprovider",
                         photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mImageUri);
                 startActivityForResult(takePictureIntent, REQUEST_IMAGE);
             }
         }
